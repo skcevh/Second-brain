@@ -1,0 +1,2 @@
+# Optional PST parser for CPython 3.12 on Windows x64.
+libpff-python==20261030 --hash=sha256:7bf66c7fac3cff210b84fc657cc6145905d835a569cf238edcee35b67b8bf6f4

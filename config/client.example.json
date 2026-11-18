@@ -1,0 +1,11 @@
+{
+  "inbox": "\\\\AMIROS-SERVER\\AMIROS-SecondBrain$",
+  "sources": {"chatgpt": false, "codex": false, "copilot-vscode": false, "copilot-cli": false, "outlook": false, "instructions": false},
+  "allow_all_workspaces": false,
+  "projects": {"Amiros": [], "Computertje": [], "Sioen": [], "Andere klantprojecten": [], "Persoonlijke projecten": [], "Algemene technische kennis": []},
+  "deny_paths": [],
+  "reviewed_drop_projects": [],
+  "approved_exports": {},
+  "instruction_files": {},
+  "outlook_stores": {}
+}

@@ -1,0 +1,4 @@
+{
+  "accepted_sources": ["chatgpt","codex","copilot-vscode","copilot-cli","outlook","instructions"],
+  "ollama_model": ""
+}
