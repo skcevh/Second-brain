@@ -80,6 +80,8 @@ Maak per mailbox een sleutel aan in `mail_accounts` in de lokale **client.json**
 3. Voeg onder **API permissions** de gedelegeerde Graph-machtigingen **Mail.Read** en **User.Read** toe. **User.Read** dient om het aangemelde account te controleren. In de browser vraagt de connector ook `offline_access` voor het vernieuwen van de sessie.
 4. Kopieer de **Application (client) ID**. Voor beide mailboxen kun je dezelfde appregistratie gebruiken. Voer `mail-connect` per mailbox uit en kies telkens het bijbehorende account. Als de Amiros-tenant toestemming door gebruikers blokkeert, laat de beheerder de app beoordelen.
 
+Zet voor een persoonlijk Hotmail-account `"authority": "consumers"` in de mailboxconfiguratie als de algemene Microsoft-aanmelding een andere accountidentiteit teruggeeft. De desktop-appregistratie moet persoonlijke Microsoft-accounts ondersteunen.
+
 [Entra-desktopapp registreren](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-registration) · [Graph-mailtoegang](https://learn.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0)
 
 ### Gmail

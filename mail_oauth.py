@@ -120,13 +120,23 @@ def session_state(credentials, response):
     }
 
 
-def token_request(provider, credentials, **fields):
+def provider_endpoints(provider, authority=None):
+    authorize, token, scope = ENDPOINTS[provider]
+    if provider == "graph" and authority == "consumers":
+        authorize = authorize.replace("/common/", "/consumers/")
+        token = token.replace("/common/", "/consumers/")
+    elif authority not in (None, "common"):
+        raise ValueError("Ongeldig Microsoft-aanmeldpunt")
+    return authorize, token, scope
+
+
+def token_request(provider, credentials, *, authority=None, **fields):
     form = {"client_id": credentials["client_id"], **fields}
     if provider == "graph":
         form["scope"] = GRAPH_SCOPE
     elif credentials.get("client_secret"):
         form["client_secret"] = credentials["client_secret"]
-    return request_json(ENDPOINTS[provider][1], form=form)
+    return request_json(provider_endpoints(provider, authority)[1], form=form)
 
 
 def access_token(state, alias, account):
@@ -137,7 +147,7 @@ def access_token(state, alias, account):
     if credentials["provider"] != provider or credentials["email"] != account["email"].casefold():
         raise ValueError("Mailboxconfiguratie is gewijzigd; verbind de mailbox opnieuw.")
     if credentials["expires_at"] <= time.time() + 60:
-        response = token_request(provider, credentials, grant_type="refresh_token",
+        response = token_request(provider, credentials, authority=account.get("authority"), grant_type="refresh_token",
                                  refresh_token=credentials["refresh_token"])
         credentials = session_state(credentials, response)
         save_credentials(state, alias, credentials)
@@ -163,6 +173,7 @@ def interactive_code(provider, account, client_id):
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
     expected_state = secrets.token_urlsafe(32)
     result = {}
+    authorize, _, scope = provider_endpoints(provider, account.get("authority"))
 
     class Callback(BaseHTTPRequestHandler):
         def setup(self):
@@ -192,13 +203,13 @@ def interactive_code(provider, account, client_id):
         host = "localhost" if provider == "graph" else "127.0.0.1"
         redirect = f"http://{host}:{server.server_port}/"
         params = {"client_id": client_id, "redirect_uri": redirect, "response_type": "code",
-                  "scope": ENDPOINTS[provider][2], "state": expected_state, "code_challenge": challenge,
+                  "scope": scope, "state": expected_state, "code_challenge": challenge,
                   "code_challenge_method": "S256", "login_hint": account["email"]}
         if provider == "gmail":
             params.update(access_type="offline", prompt="consent select_account")
         else:
             params.update(prompt="select_account")
-        url = ENDPOINTS[provider][0] + "?" + urlencode(params)
+        url = authorize + "?" + urlencode(params)
         print("Meld je in de browser aan en verleen leestoegang.", flush=True)
         if not webbrowser.open(url):
             print(url, flush=True)
@@ -216,7 +227,8 @@ def connect(state, alias, account, client_id, credentials_file):
     provider = account["provider"]
     registration = client_registration(provider, client_id, credentials_file)
     code, verifier, redirect = interactive_code(provider, account, registration["client_id"])
-    response = token_request(provider, registration, code=code, code_verifier=verifier, redirect_uri=redirect,
+    response = token_request(provider, registration, authority=account.get("authority"),
+                             code=code, code_verifier=verifier, redirect_uri=redirect,
                              grant_type="authorization_code")
     expected = account["email"].casefold()
     token = response["access_token"]

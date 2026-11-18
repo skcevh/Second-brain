@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from brain_core import encoded
 from brain_store import database
-from mail_oauth import GMAIL_API, GRAPH_API, MailError, connect, load_credentials, save_credentials
+from mail_oauth import GMAIL_API, GRAPH_API, MailError, connect, load_credentials, provider_endpoints, save_credentials
 from mail_sync import gmail_collect, graph_pages
 from secondbrain import receive, sync
 
@@ -135,6 +135,11 @@ class MailSyncTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "komt niet overeen"):
                 connect(self.state, "ms", GRAPH, "10000000-0000-0000-0000-000000000000", None)
             store.assert_not_called()
+
+    def test_hotmail_can_use_the_personal_microsoft_authority(self):
+        authorize, token, _ = provider_endpoints("graph", "consumers")
+        self.assertEqual(urlsplit(authorize).path, "/consumers/oauth2/v2.0/authorize")
+        self.assertEqual(urlsplit(token).path, "/consumers/oauth2/v2.0/token")
 
     @unittest.skipUnless(os.name == "nt", "Windows DPAPI")
     def test_windows_credentials_are_encrypted_and_can_be_reopened(self):
