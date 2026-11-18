@@ -8,6 +8,7 @@ import unittest
 import zipfile
 
 from brain_core import digest, encoded
+from brain_sources import pst_body
 from brain_store import PACKET
 
 CLI = Path(__file__).resolve().parents[1] / "secondbrain.py"
@@ -196,6 +197,24 @@ class PipelineTest(unittest.TestCase):
         self.cli(self.server, "receive")
         hit, = self.cli(self.server, "search", "laatste antwoord", "--json")
         self.assertEqual(hit["source"], "copilot-vscode")
+
+    def test_outlook_pst_missing_body_and_read_errors(self):
+        class ExportedMail:
+            plain_text_body = b"synthetic body"
+
+            @property
+            def html_body(self):
+                raise OSError("libpff_message_get_html_body_size: missing value data.")
+
+        class DamagedMail:
+            @property
+            def html_body(self):
+                raise OSError("PST read failure")
+
+        self.assertEqual(pst_body(ExportedMail(), "plain_text_body"), b"synthetic body")
+        self.assertIsNone(pst_body(ExportedMail(), "html_body"))
+        with self.assertRaisesRegex(OSError, "PST read failure"):
+            pst_body(DamagedMail(), "html_body")
 
 
 if __name__ == "__main__":

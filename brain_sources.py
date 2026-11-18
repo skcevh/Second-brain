@@ -373,6 +373,16 @@ def mapi_value(item, identifier, kind):
     return None
 
 
+def pst_body(item, field):
+    try:
+        return getattr(item, field)
+    except OSError as exc:
+        # libpff reports an empty MAPI body value as an error in some Outlook exports.
+        if "missing value data." not in str(exc):
+            raise
+        return None
+
+
 def pst_folder(folder, project, folder_path=""):
     folder_path = "/".join(filter(None, (folder_path, folder.name)))
     for item in folder.sub_messages:
@@ -385,9 +395,9 @@ def pst_folder(folder, project, folder_path=""):
         headers = email.message_from_string(transport or "", policy=email_policy.default)
         if str(headers.get("Sensitivity", "")).casefold().strip() in {"private", "company-confidential"}:
             continue
-        body = item.plain_text_body
-        if not body and item.html_body:
-            html = item.html_body
+        body = pst_body(item, "plain_text_body")
+        html = pst_body(item, "html_body") if not body else None
+        if html:
             parser = MailHTML()
             parser.feed(html.decode("utf-8", "replace") if isinstance(html, bytes) else html)
             body = "".join(parser.parts)
