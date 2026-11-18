@@ -58,6 +58,54 @@ Voor consumentenchats publiceert OpenAI een exportworkflow. Sign in with ChatGPT
 
 Primaire documentatie: [ChatGPT-export](https://help.openai.com/en/articles/7260999-exporting-your-chatgpt-history-and-data), [Sign in with ChatGPT](https://developers.openai.com/siwc/quickstart), [Compliance Platform](https://help.openai.com/en/articles/9261474-openai-compliance-platform-for-enterprise-and-edu-customers), [Codex-rollouts](https://github.com/openai/codex/tree/main/codex-rs/rollout), [VS Code-chatgeschiedenis](https://code.visualstudio.com/docs/agents/run/sessions/session-history), [Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/chronicle), [Outlook-export](https://support.microsoft.com/en-us/outlook/export-emails-contacts-and-calendar-items-to-outlook-using-a-pst-file), [Outlook Object Model](https://learn.microsoft.com/en-us/office/vba/api/outlook.namespace.stores).
 
+## Rechtstreekse mailimport instellen
+
+Maak per mailbox een sleutel aan in `mail_accounts` in de lokale **client.json**. Gebruik een korte alias met kleine letters, cijfers en koppeltekens. Stel `sources.outlook` in op `true`. Kies een `initial_since` in UTC vóór de meest recente PST-export. Mail die daarna is ontvangen valt zo binnen de eerste scan. Mail die al in de index staat wordt op Message-ID ontdubbeld wanneer de bron die ID meelevert.
+
+```json
+"mail_accounts": {
+  "voorbeeld": {
+    "provider": "graph",
+    "email": "mail@example.invalid",
+    "project": "E-mail",
+    "initial_since": "2026-11-18T00:00:00Z"
+  }
+}
+```
+
+### Amiros en Hotmail
+
+1. Ga naar **Microsoft Entra → App registrations → New registration**. Kies het accounttype dat zowel accounts in elke organisatie als persoonlijke Microsoft-accounts ondersteunt.
+2. Voeg onder **Authentication** het platform **Mobile and desktop applications** toe met redirect-URI `http://localhost`. Gebruik een public client.
+3. Voeg onder **API permissions** de gedelegeerde Graph-machtigingen **Mail.Read** en **User.Read** toe. **User.Read** dient om het aangemelde account te controleren. In de browser vraagt de connector ook `offline_access` voor het vernieuwen van de sessie.
+4. Kopieer de **Application (client) ID**. Voor beide mailboxen kun je dezelfde appregistratie gebruiken. Voer `mail-connect` per mailbox uit en kies telkens het bijbehorende account. Als de Amiros-tenant toestemming door gebruikers blokkeert, laat de beheerder de app beoordelen.
+
+[Entra-desktopapp registreren](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-registration) · [Graph-mailtoegang](https://learn.microsoft.com/en-us/graph/api/user-list-messages?view=graph-rest-1.0)
+
+### Gmail
+
+1. Maak of selecteer een project in **Google Cloud Console** en schakel de **Gmail API** in. Configureer **Google Auth Platform** voor de bedoelde gebruiker. Gebruik voor een persoonlijk Gmail-account het publiek **External**.
+2. Maak onder **Clients** een OAuth-client van het type **Desktop app**. Download het client-JSON-bestand naar een privémap buiten Git. De connector vraagt `gmail.readonly`.
+3. Voer `mail-connect` uit, kies het juiste Gmail-account en verleen leestoegang in de browser. Bij een project met publicatiestatus **Testing** vervalt de Gmail-refresh-token normaal na zeven dagen. Volg voor doorlopende toegang Googles publicatie- en eventuele verificatievereisten voor dit project.
+
+[Gmail API inschakelen](https://console.cloud.google.com/apis/library/gmail.googleapis.com) · [OAuth voor desktopapps](https://developers.google.com/identity/protocols/oauth2/native-app) · [Google OAuth-publiek en publicatiestatus](https://support.google.com/cloud/answer/15549945)
+
+### Aanmelden op AMIROS-SERVER
+
+Voer de opdrachten uit in PowerShell op de server, onder hetzelfde Windows-account als de vijfminutentaak. De aanmelding gaat via je browser, waar je de machtigingen beoordeelt. Tokens worden versleuteld met Windows DPAPI onder dat account.
+
+```powershell
+$brain = Join-Path $env:USERPROFILE 'AMIROS\SecondBrain\brain.cmd'
+$graphId = Read-Host 'Entra Application (client) ID'
+& $brain mail-connect amiros --client-id $graphId
+& $brain mail-connect hotmail --client-id $graphId
+$googleFile = Read-Host 'Volledig pad naar het Google OAuth Desktop-clientbestand'
+& $brain mail-connect gmail --credentials-file $googleFile
+& $brain mail-status
+```
+
+De geplande taak werkt ook als Outlook gesloten is. Het Windows-account blijft aangemeld. Graph leest veranderingen in de primaire mailbox sinds de laatst verwerkte periode met een kwartier overlap. Gmail bewaart zijn positie in de wijzigingenhistoriek en scant opnieuw vanaf `initial_since` wanneer die historiek is vervallen. `mail-status` toont per account of er een autorisatie is opgeslagen, wanneer ophalen voor het laatst is geslaagd en welke fout de provider eventueel terugstuurt. Losse PST-archieven blijven als aparte importbron beschikbaar. Graph kan een afzonderlijk Exchange Online Archive niet lezen. [Graph-archiefbeperking](https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview?view=graph-rest-1.0) · [Gmail-synchronisatie](https://developers.google.com/workspace/gmail/api/guides/sync)
+
 ## Zoeken en kennis opbouwen
 
 Voer deze commando’s op AMIROS-SERVER uit onder de archiefgebruiker. Dezelfde CLI is beschikbaar vanuit een lokale Codex- of Copilot-terminal. Draai de opdracht zelf voor gevoelige treffers die je buiten de context van een AI-assistent wilt houden.

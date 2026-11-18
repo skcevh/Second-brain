@@ -341,6 +341,34 @@ def mail_record(mail, project, *, store=""):
                   created=mail.get("sent"), changed=mail.get("modified"), cwd=store, ref=f"message-id:{sid}")
 
 
+def html_to_text(text):
+    parser = MailHTML()
+    parser.feed(text)
+    return "".join(parser.parts)
+
+
+def header_mail_details(mail):
+    if str(mail.get("Sensitivity", "")).strip().casefold() in {"private", "company-confidential"}:
+        return None
+    if any(marker in mail.get_content_type() for marker in ("pkcs7-mime", "multipart/encrypted", "x-microsoft-rpmsg")):
+        return None
+    part = mail.get_body(preferencelist=("plain", "html"))
+    body = ""
+    if part:
+        try:
+            body = part.get_content()
+        except LookupError:
+            body = (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
+    if part and part.get_content_type() == "text/html":
+        body = html_to_text(body)
+    try:
+        sent = email.utils.parsedate_to_datetime(str(mail.get("Date"))).isoformat()
+    except (ValueError, TypeError, OverflowError):
+        sent = None
+    return {"subject": str(mail.get("Subject", "")), "body": body, "sender": str(mail.get("From", "")),
+            "to": str(mail.get("To", "")), "cc": str(mail.get("Cc", "")), "sent": sent}
+
+
 def eml(path, rules, folder):
     raw = read_bytes(path)
     mail = email.message_from_bytes(raw, policy=email_policy.default)
@@ -348,21 +376,9 @@ def eml(path, rules, folder):
     project = rules.exported("outlook", sid, folder)
     if not project:
         return
-    if str(mail.get("Sensitivity", "")).strip().casefold() in {"private", "company-confidential"}:
-        return
-    part = mail.get_body(preferencelist=("plain", "html"))
-    body = part.get_content() if part else ""
-    if part and part.get_content_type() == "text/html":
-        parser = MailHTML()
-        parser.feed(body)
-        body = "".join(parser.parts)
-    try:
-        sent = email.utils.parsedate_to_datetime(str(mail.get("Date"))).isoformat()
-    except (ValueError, TypeError, OverflowError):
-        sent = None
-    yield mail_record({"internet_id": sid, "subject": str(mail.get("Subject", "")), "body": body,
-                       "sender": str(mail.get("From", "")), "to": str(mail.get("To", "")),
-                       "cc": str(mail.get("Cc", "")), "sent": sent}, project)
+    details = header_mail_details(mail)
+    if details is not None:
+        yield mail_record({"internet_id": sid, **details}, project)
 
 
 def mapi_value(item, identifier, kind):

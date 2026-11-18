@@ -18,6 +18,8 @@ from uuid import uuid4
 from brain_core import SOURCES, Policy, clean, digest, encoded, files, iso, message, outside_git, read_bytes, read_json, record
 import brain_sources as sources
 from brain_store import CLIENT_SCHEMA, SERVER_SCHEMA, add_knowledge, checked_backup, database, flush, ingest, search, stage
+from mail_oauth import connect
+from mail_sync import cloud_store, collect_mail, mail_status
 
 LOG = logging.getLogger("secondbrain")
 DEFAULT = Path.home() / "AMIROS" / "SecondBrain"
@@ -112,6 +114,9 @@ def permitted(row, rules):
     if source in ADAPTERS and not row.get("is_export"):
         return rules.workspace(row["cwd"]) == project
     if source == "outlook" and row["cwd"]:
+        if row["cwd"].startswith("cloud:"):
+            return any(config["project"] == project and cloud_store(alias, config) == row["cwd"]
+                       for alias, config in rules.mail_accounts.items())
         return rules.outlook_stores.get(row["cwd"]) == project
     return rules.exported(source, row["id"], project) == project
 
@@ -193,6 +198,10 @@ def sync(state):
         mail_queued, mail_errors = collect_outlook(conn, rules)
         queued += mail_queued
         errors += mail_errors
+        if rules.enabled("outlook"):
+            cloud_queued, cloud_errors = collect_mail(conn, state, rules.mail_accounts)
+            queued += cloud_queued
+            errors += cloud_errors
         can_send = not config["inbox"].startswith("\\\\") or encrypted_connection(inbox)
         sent, offline = flush(conn, inbox, lambda row: permitted(row, rules)) if can_send else (0, True)
         pending = conn.execute("SELECT count(*) FROM outbox WHERE payload IS NOT NULL").fetchone()[0]
@@ -322,8 +331,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state", default=str(DEFAULT))
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("status", "detect", "sync", "receive", "run", "outlook-stores", "rescan"):
+    for name in ("status", "detect", "sync", "receive", "run", "outlook-stores", "rescan", "mail-status"):
         commands.add_parser(name)
+    auth = commands.add_parser("mail-connect")
+    auth.add_argument("alias")
+    auth.add_argument("--client-id")
+    auth.add_argument("--credentials-file")
     export = commands.add_parser("list-export")
     export.add_argument("source", choices=["chatgpt", "copilot-vscode"])
     export.add_argument("path")
@@ -369,6 +382,16 @@ def main():
         return show_export(args.path, args.source)
     if command == "status":
         return status(state)
+    if command in {"mail-status", "mail-connect"}:
+        rules = Policy(settings(state, "client"))
+        if command == "mail-status":
+            with database(state / "client.sqlite", CLIENT_SCHEMA) as conn:
+                return mail_status(state, rules.mail_accounts, conn)
+        if not rules.enabled("outlook") or args.alias not in rules.mail_accounts:
+            raise ValueError("Schakel Outlook in en voeg deze mailbox toe aan mail_accounts in client.json.")
+        if os.name != "nt":
+            raise ValueError("Mailcredentials vereisen Windows DPAPI.")
+        return connect(state, args.alias, rules.mail_accounts[args.alias], args.client_id, args.credentials_file)
     if command == "rescan":
         settings(state, "client")
         with database(state / "client.sqlite", CLIENT_SCHEMA) as conn:

@@ -55,7 +55,7 @@ try {
 
     $app = Join-Path $State 'app'
     $null = New-Item -ItemType Directory -Path $app -Force
-    foreach ($file in 'secondbrain.py','brain_core.py','brain_sources.py','brain_store.py','Read-Outlook.ps1') {
+    foreach ($file in 'secondbrain.py','brain_core.py','brain_sources.py','brain_store.py','mail_sync.py','mail_oauth.py','Read-Outlook.ps1') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $app -Force
     }
     if ($EnablePst) {

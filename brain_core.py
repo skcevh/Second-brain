@@ -145,6 +145,7 @@ class Policy:
         self.reviewed = config.get("reviewed_drop_projects", [])
         self.instructions = config.get("instruction_files", {})
         self.outlook_stores = config.get("outlook_stores", {})
+        self.mail_accounts = config.get("mail_accounts", {})
 
     def enabled(self, source):
         return self.sources.get(source) is True

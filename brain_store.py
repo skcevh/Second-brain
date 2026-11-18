@@ -42,6 +42,9 @@ CREATE TABLE IF NOT EXISTS outbox (
 CREATE TABLE IF NOT EXISTS outlook_cursor (
     store TEXT PRIMARY KEY, since TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS mail_sync (
+    alias TEXT PRIMARY KEY, identity TEXT NOT NULL, cursor TEXT, last_success TEXT, last_error TEXT
+);
 """
 
 
